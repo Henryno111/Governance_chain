@@ -92,3 +92,67 @@
   ;; For simplicity, we'll return a fixed value
   u100)
 
+;; public functions
+(define-public (create-proposal
+                (title (string-utf8 100))
+                (description (string-utf8 500))
+                (duration uint)
+                (action-contract principal)
+                (action-function (string-ascii 128))
+                (action-args (list 10 (string-utf8 100))))
+  (let ((voting-power (get-voting-power tx-sender)))
+    (asserts! (>= voting-power u10) err-insufficient-tokens)
+    (asserts! (>= duration min-proposal-duration) err-unauthorized)
+    (create-proposal-internal title description duration action-contract action-function action-args)))
+
+(define-public (vote (proposal-id uint) (vote-type uint) (amount uint))
+  (let ((proposal (unwrap! (map-get? proposals proposal-id) err-not-found))
+        (voting-power (get-voting-power tx-sender)))
+    
+    ;; Check if proposal is active
+    (asserts! (is-proposal-active proposal-id) err-proposal-not-active)
+    
+    ;; Check if user has enough voting power
+    (asserts! (>= voting-power amount) err-insufficient-tokens)
+    
+    ;; Check if user has already voted
+    (asserts! (is-none (map-get? votes {proposal-id: proposal-id, voter: tx-sender})) err-already-voted)
+    
+    ;; Check if vote type is valid
+    (asserts! (or (is-eq vote-type vote-for) (is-eq vote-type vote-against) (is-eq vote-type vote-abstain)) err-invalid-vote)
+    
+    ;; Record the vote
+    (map-set votes {proposal-id: proposal-id, voter: tx-sender} {vote-type: vote-type, amount: amount})
+    
+    ;; Update vote tallies based on vote type
+    (if (is-eq vote-type vote-for)
+      (map-set proposals proposal-id (merge proposal {for-votes: (+ (get for-votes proposal) amount)}))
+      (if (is-eq vote-type vote-against)
+        (map-set proposals proposal-id (merge proposal {against-votes: (+ (get against-votes proposal) amount)}))
+        (map-set proposals proposal-id (merge proposal {abstain-votes: (+ (get abstain-votes proposal) amount)}))))
+    
+    (ok true)))
+
+(define-public (finalize-proposal (proposal-id uint))
+  (let ((proposal (unwrap! (map-get? proposals proposal-id) err-not-found))
+        (current-height (unwrap-panic (get-block-info? time u0)))
+        (total-votes (+ (get for-votes proposal) (get against-votes proposal) (get abstain-votes proposal))))
+    
+    ;; Check if proposal has ended
+    (asserts! (> current-height (get end-block-height proposal)) err-proposal-active)
+    
+    ;; Check if proposal is still active (not already finalized)
+    (asserts! (is-eq (get status proposal) status-active) err-unauthorized)
+    
+    ;; Calculate if quorum was reached
+    (if (>= (* total-votes u100) (* (var-get total-token-supply) quorum-percentage))
+      ;; Quorum reached, check if proposal passed
+      (if (>= (* (get for-votes proposal) u100) (* total-votes approval-threshold))
+        ;; Proposal approved
+        (map-set proposals proposal-id (merge proposal {status: status-approved}))
+        ;; Proposal rejected
+        (map-set proposals proposal-id (merge proposal {status: status-rejected})))
+      ;; Quorum not reached, proposal rejected
+      (map-set proposals proposal-id (merge proposal {status: status-rejected})))
+    
+    (ok true)))
