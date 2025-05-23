@@ -10,12 +10,30 @@
 (define-constant err-proposal-expired (err u104))
 (define-constant err-already-voted (err u105))
 (define-constant err-insufficient-tokens (err u106))
+(define-constant err-proposal-active (err u107))
+(define-constant err-proposal-not-active (err u108))
+(define-constant err-invalid-vote (err u109))
 
-;; Proposal statuses
-(define-constant status-active u0)
-(define-constant status-passed u1)
-(define-constant status-failed u2)
-(define-constant status-expired u3)
+;; Proposal status values
+(define-constant status-active u1)
+(define-constant status-approved u2)
+(define-constant status-rejected u3)
+(define-constant status-executed u4)
+
+;; Voting options
+(define-constant vote-for u1)
+(define-constant vote-against u2)
+(define-constant vote-abstain u3)
+
+;; Governance parameters
+(define-constant min-proposal-duration u144) ;; ~1 day in blocks
+(define-constant quorum-percentage u30) ;; 30% of total tokens must vote
+(define-constant approval-threshold u51) ;; 51% of votes must be "for"
+
+;; data maps and vars
+(define-data-var total-proposals uint u0)
+(define-data-var governance-token principal 'ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.token-contract)
+(define-data-var total-token-supply uint u0)
 
 ;; Proposal data structure
 (define-map proposals
