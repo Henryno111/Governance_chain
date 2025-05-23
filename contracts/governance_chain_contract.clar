@@ -156,3 +156,37 @@
       (map-set proposals proposal-id (merge proposal {status: status-rejected})))
     
     (ok true)))
+
+(define-public (execute-proposal (proposal-id uint))
+  (let ((proposal (unwrap! (map-get? proposals proposal-id) err-not-found)))
+    
+    ;; Check if proposal was approved
+    (asserts! (is-eq (get status proposal) status-approved) err-unauthorized)
+    
+    ;; Mark proposal as executed
+    (map-set proposals proposal-id (merge proposal {status: status-executed}))
+    
+    ;; In a real implementation, this would execute the proposal's action
+    ;; For simplicity, we'll just return success
+    (ok true)))
+
+(define-read-only (get-proposal (proposal-id uint))
+  (map-get? proposals proposal-id))
+
+(define-read-only (get-vote (proposal-id uint) (voter principal))
+  (map-get? votes {proposal-id: proposal-id, voter: voter}))
+
+(define-read-only (get-proposal-count)
+  (var-get total-proposals))
+
+(define-public (set-governance-token (token-contract principal))
+  (begin
+    (asserts! (is-eq tx-sender contract-owner) err-owner-only)
+    (var-set governance-token token-contract)
+    (ok true)))
+
+(define-public (set-total-token-supply (new-supply uint))
+  (begin
+    (asserts! (is-eq tx-sender contract-owner) err-owner-only)
+    (var-set total-token-supply new-supply)
+    (ok true)))
